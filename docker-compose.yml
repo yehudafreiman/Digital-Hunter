@@ -1,4 +1,5 @@
 services:
+# infrastructure
   kafka:
     image: confluentinc/cp-kafka:7.8.3
     container_name: kafka
@@ -18,46 +19,50 @@ services:
     volumes:
       - kafka_kraft:/var/lib/kafka/data
 
-#  elasticsearch:
-#    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.1
-#    container_name: elasticsearch
-#    ports:
-#      - "9200:9200"
-#    environment:
-#      ES_HOST: "http://elasticsearch:9200"
-#    volumes:
-#      - elasticsearch_db
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/var/share/elasticsearch/data
+    networks:
+      - app-network
 
-#  kibana:
-#    image: docker.elastic.co/kibana/kibana:9.3.1
-#    container_name: kibana
-#    ports:
-#      - "5606:5606"
-#    environment:
-#      ES_HOST: "http://elasticsearch:9200"
-#    volumes:
-#      - kibana_data
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.0
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    volumes:
+      - kibana_data:/var/share/kibana/data
+    networks:
+      - app-network
 
-#  mongodb:
-#    image: mongodb:latest
-#    container_name: mongodb
-#    ports:
-#      - "27017:27017"
-#    environment:
-#      ES_HOST: "http://elasticsearch:9200"
-#      MONGO_URI: "mongodb://mongodb:27017/"
-#    volumes:
-#      - mongo_db
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - db:/data/db
+    networks:
+      - app-network
 
-#  consumer:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile
-#    environment:
-#      ES_HOST: "http://elasticsearch:9200"
+# applications
+  consumer:
+    build:
+      context: .
+      dockerfile: ./consumer/Dockerfile
+    environment:
+      - ES_HOST=http://elasticsearch:9200
+      - MONGO_URI=mongodb://localhost:27017/
+
+networks:
+  app-network:
 
 volumes:
   kafka_kraft:
-#  elasticsearch_db:
-#  kibana_data:
-#  mongo_db:
+  elasticsearch_data:
+  kibana_data:
+  db:

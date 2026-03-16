@@ -1,41 +1,47 @@
 import json
+import os
 from confluent_kafka import Consumer
 from shared.logger import log_event
 
-class Tracker:
-    def __init__(self):
-        consumer_config = {
-            "bootstrap.servers": "localhost:9092",
-            "group.id": "tracker",
+
+class KafkaConsumer:
+    # configuration
+    def __init__(self, broker, group_id, topic):
+        self.consumer = Consumer({
+            "bootstrap.servers": broker,
+            "group.id": group_id,
             "auto.offset.reset": "earliest"
-        }
-        consumer = Consumer(consumer_config)
+        })
+        self.consumer.subscribe(topic)
 
-        consumer.subscribe(["intel", "attack", "damage"])
-
-        log_event(level="info", message="Consumer is running")
-
-    def tracker(self):
-        consumer = Tracker()
+    # listen kafka producer
+    def processor(self):
         try:
             while True:
-                msg = consumer.poll(20)
+                msg = self.consumer.poll(20)
                 if msg is None:
+                    log_event(level="info", message="No more massages")
                     break
                 if msg.error():
-                    print("Error:", msg.error())
+                    log_event(level="error", message=msg.error())
                     continue
 
-                value = msg.value().decode("utf-8")
-                order = json.loads(value)
-                log_event(level="info", message=f"get {order} from producer")
+                data = json.loads(msg.value().decode("utf-8"))
+                log_event(level="info", message=f"Get {data} from producer")
         except KeyboardInterrupt:
             print("Stopping consumer")
-
         finally:
-            consumer.close()
+            self.consumer.close()
+
 
 if __name__ == '__main__':
-    tracker = Tracker()
-    tracker.tracker()
+    consumer = KafkaConsumer(
+        os.getenv('KAFKA_BROKER', 'kafka:9092'),
+        'signals-tracker',
+        ["intel", "attack", "damage"]
+    )
+
+    log_event(level="info", message="Consumer is running")
+
+    consumer.processor()
 
