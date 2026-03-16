@@ -1,10 +1,11 @@
 services:
-# infrastructure
+  #Infrastructure
   kafka:
     image: confluentinc/cp-kafka:7.8.3
     container_name: kafka
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_KRAFT_MODE: 'true'
       CLUSTER_ID: '1L6g7nGhU-eAKfL--X25wo'
@@ -12,13 +13,19 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_INTER_BROCKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
     volumes:
       - kafka_kraft:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - app-network
 
@@ -27,8 +34,17 @@ services:
     container_name: elasticsearch
     ports:
       - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
     volumes:
-      - elasticsearch_data:/var/share/elasticsearch/data
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
     networks:
       - app-network
 
@@ -39,34 +55,51 @@ services:
       - "27017:27017"
     volumes:
       - db:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - app-network
 
-# applications
+  #Application Services
   consumer:
     build:
       context: .
       dockerfile: ./consumer/Dockerfile
+    container_name: consumer
     environment:
       KAFKA_BROKER: kafka:9092
       ES_HOST: http://elasticsearch:9200
-      MONGO_URI: mongodb://mongodb:27017/
     depends_on:
-      - kafka
-      - elasticsearch
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: on-failure
     networks:
       - app-network
 
   analyze:
     build:
       context: .
-      dockerfile: analyze/Dockerfile
+      dockerfile: ./analyze/Dockerfile
+    container_name: analyze
     environment:
+      KAFKA_BROKER: kafka:9092
       ES_HOST: http://elasticsearch:9200
       MONGO_URI: mongodb://mongodb:27017/
     depends_on:
-      - consumer
-      - elasticsearch
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      consumer:
+        condition: service_started
+    restart: on-failure
     networks:
       - app-network
 
@@ -74,13 +107,18 @@ services:
     build:
       context: .
       dockerfile: ./loader/Dockerfile
+    container_name: loader
     environment:
       ES_HOST: http://elasticsearch:9200
       MONGO_URI: mongodb://mongodb:27017/
     depends_on:
-      - elasticsearch
-      - analyze
-      - mongodb
+      elasticsearch:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      analyze:
+        condition: service_started
+    restart: on-failure
     networks:
       - app-network
 
