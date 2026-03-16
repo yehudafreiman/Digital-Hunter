@@ -1,10 +1,12 @@
 import json
 import os
+import uuid
 from confluent_kafka import Consumer
 from shared.logger import log_event
+from shared.connection import collection
 
 
-class KafkaConsumer:
+class KafkaEventProcessor:
     # configuration
     def __init__(self, broker, group_id, topic):
         self.consumer = Consumer({
@@ -15,31 +17,39 @@ class KafkaConsumer:
         self.consumer.subscribe([topic])
 
     # listen kafka events
-    def processor(self):
+    def process_event(self, callback):
         try:
             while True:
-                msg = self.consumer.poll(0.1)
+                msg = self.consumer.poll(15)
                 if msg is None:
                     continue
                 if msg.error():
                     log_event(level="error", message=f"{msg.error()}")
                     continue
-
                 data = json.loads(msg.value().decode("utf-8"))
-                log_event(level="info", message=f"Get {data} from producer")
-        except KeyboardInterrupt:
-            print("Stopping consumer")
+                data["id"] = str(uuid.uuid4())
+                callback(data)
         finally:
             self.consumer.close()
 
+class DataStorageManager:
+    # send mongo
+    @staticmethod
+    def save_events_mongodb(data):
+        try:
+            for event in data:
+                collection.insert_one(event)
+                log_event(level="info", message="saved to mongoDB")
+        except Exception as e:
+            log_event(level="error", message=f"{e}")
+
+def handle_data(data):
+    DataStorageManager.save_events_mongodb(data)
 
 if __name__ == '__main__':
-    consumer = KafkaConsumer(
+    consumer = KafkaEventProcessor(
         os.getenv('KAFKA_BROKER', 'kafka:9092'),
         'signals-tracker',
         ["intel", "attack", "damage"]
     )
-
-    log_event(level="info", message="Consumer is running")
-
-    consumer.processor()
+    consumer.process_event(handle_data)
