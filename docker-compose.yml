@@ -1,0 +1,63 @@
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.8.3
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_KRAFT_MODE: 'true'
+      CLUSTER_ID: '1L6g7nGhU-eAKfL--X25wo'
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+    volumes:
+      - kafka_kraft:/var/lib/kafka/data
+
+#  elasticsearch:
+#    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.1
+#    container_name: elasticsearch
+#    ports:
+#      - "9200:9200"
+#    environment:
+#      ES_HOST: "http://elasticsearch:9200"
+#    volumes:
+#      - elasticsearch_db
+
+#  kibana:
+#    image: docker.elastic.co/kibana/kibana:9.3.1
+#    container_name: kibana
+#    ports:
+#      - "5606:5606"
+#    environment:
+#      ES_HOST: "http://elasticsearch:9200"
+#    volumes:
+#      - kibana_data
+
+#  mongodb:
+#    image: mongodb:latest
+#    container_name: mongodb
+#    ports:
+#      - "27017:27017"
+#    environment:
+#      ES_HOST: "http://elasticsearch:9200"
+#      MONGO_URI: "mongodb://mongodb:27017/"
+#    volumes:
+#      - mongo_db
+
+#  consumer:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    environment:
+#      ES_HOST: "http://elasticsearch:9200"
+
+volumes:
+  kafka_kraft:
+#  elasticsearch_db:
+#  kibana_data:
+#  mongo_db:
