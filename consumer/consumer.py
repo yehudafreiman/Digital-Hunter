@@ -28,6 +28,7 @@ class KafkaEventProcessor:
                     continue
                 data = json.loads(msg.value().decode("utf-8"))
                 data["id"] = str(uuid.uuid4())
+                log_event(level="info", message=data["id"])
                 callback(data)
         finally:
             self.consumer.close()
@@ -53,3 +54,4 @@ if __name__ == '__main__':
         ["intel", "attack", "damage"]
     )
     consumer.process_event(handle_data)
+
