@@ -3,5 +3,5 @@ WORKDIR /app
 COPY consumer/requirements.txt .
 RUN pip install -r requirements.txt
 COPY shared ./shared
-COPY consumer ./consumer
+COPY consumer .
 CMD ["python", "consumer.py"]

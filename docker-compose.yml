@@ -18,6 +18,8 @@ services:
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
     volumes:
       - kafka_kraft:/var/lib/kafka/data
+    networks:
+      - app-network
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
@@ -26,16 +28,6 @@ services:
       - "9200:9200"
     volumes:
       - elasticsearch_data:/var/share/elasticsearch/data
-    networks:
-      - app-network
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.17.0
-    container_name: kibana
-    ports:
-      - "5601:5601"
-    volumes:
-      - kibana_data:/var/share/kibana/data
     networks:
       - app-network
 
@@ -55,8 +47,41 @@ services:
       context: .
       dockerfile: ./consumer/Dockerfile
     environment:
-      - ES_HOST=http://elasticsearch:9200
-      - MONGO_URI=mongodb://localhost:27017/
+      KAFKA_BROKER: kafka:9092
+      ES_HOST: http://elasticsearch:9200
+      MONGO_URI: mongodb://mongodb:27017/
+    depends_on:
+      - kafka
+      - elasticsearch
+    networks:
+      - app-network
+
+  analyze:
+    build:
+      context: .
+      dockerfile: analyze/Dockerfile
+    environment:
+      ES_HOST: http://elasticsearch:9200
+      MONGO_URI: mongodb://mongodb:27017/
+    depends_on:
+      - consumer
+      - elasticsearch
+    networks:
+      - app-network
+
+  loader:
+    build:
+      context: .
+      dockerfile: ./loader/Dockerfile
+    environment:
+      ES_HOST: http://elasticsearch:9200
+      MONGO_URI: mongodb://mongodb:27017/
+    depends_on:
+      - elasticsearch
+      - analyze
+      - mongodb
+    networks:
+      - app-network
 
 networks:
   app-network:
@@ -64,5 +89,4 @@ networks:
 volumes:
   kafka_kraft:
   elasticsearch_data:
-  kibana_data:
   db:

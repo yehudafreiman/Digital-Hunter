@@ -1,6 +1,7 @@
 FROM python:3.10
 WORKDIR /app
-COPY requirements.txt .
+COPY loader/requirements.txt .
 RUN pip install -r requirements.txt
-COPY . .
+COPY shared ./shared
+COPY loader .
 CMD ["python", "loader.py"]
